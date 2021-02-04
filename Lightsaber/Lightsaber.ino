@@ -39,6 +39,10 @@
 
 #define VOLUME 6
 
+#define PULSE_ALLOW 1       // blade pulsation (1 - allow, 0 - disallow)
+#define PULSE_AMPL 20       // pulse amplitude
+#define PULSE_DELAY 30      // delay between pulses
+
 
 CRGB pixels[BLADE_LEDS];
 TMRpcm tmrpcm;
@@ -53,8 +57,12 @@ Button bladeButton(BLADE_BUTTON_PIN);
 Button characterButton(CHARACTER_BUTTON_PIN);
 Button soundButton(SOUND_PIN);
 
-const int buttonPin = 7;
+byte nowColor, red, green, blue, redOffset, greenOffset, blueOffset;
+unsigned long PULSE_timer;
+bool bladeActive;
+int PULSEOffset;
 
+float k = 0.2;
 
 void setup() {
   
@@ -83,32 +91,69 @@ void setup() {
   characterButton.begin();
   soundButton.begin();
 
- 
+  setColor(0);
+
 }
 
-// Print to serial out only if debug is enabled
-void serialPrint(String msg) {
-  if (debug) {
-    Serial.println(msg);
+void setColor(byte color){
+  switch (color) {
+    // 0 - red
+    case 0:
+      red = 255;
+      green = 0;
+      blue = 0;
+      break;
   }
 }
 
 void loop() {
-
+  bladePulse();
+  //getFreq();
   checkInput();
+  //tick();
+  //strike();
+  //swing();
   
 }
 
-void checkInput() {
+void bladePulse(){
+    if (PULSE_ALLOW && bladeActive && (millis() - PULSE_timer > PULSE_DELAY)) {
+      PULSE_timer = millis();
+      PULSEOffset = PULSEOffset * k + random(-PULSE_AMPL, PULSE_AMPL) * (1 - k);
+      if (nowColor == 0) PULSEOffset = constrain(PULSEOffset, -15, 5);
+      redOffset = constrain(red + PULSEOffset, 0, 255);
+      greenOffset = constrain(green + PULSEOffset, 0, 255);
+      blueOffset = constrain(blue + PULSEOffset, 0, 255);
+      setAllBladePixels(redOffset, greenOffset, blueOffset);
+    }
+}
 
+void setPixel(int Pixel, byte red, byte green, byte blue) {
+  pixels[Pixel].r = red;
+  pixels[Pixel].g = green;
+  pixels[Pixel].b = blue;
+}
+
+void setAllBladePixels(byte red, byte green, byte blue) {
+  for (int i = 0; i < BLADE_LEDS; i++ ) {
+    setPixel(i, red, green, blue);
+  }
+  FastLED.show();
+}
+
+void checkInput() {
   if (bladeButton.toggled()) {
      if (bladeButton.read() == Button::PRESSED) {
-      // TODO: Check if blade is extended or not
-      // Should also control the led
-     } 
+      if (bladeActive != true) {
+        animateExtend();
+      }
+      else {
+        animateRetract();
+      }
+    } 
   }
-
 }
+
 
 void animateExtend() {
  // pixels[0] = CRGB::Red; FastLED.show();
@@ -123,6 +168,7 @@ void animateExtend() {
       delay(10);
       FastLED.show();
   }
+  bladeActive = true;
 
 }
   
@@ -137,5 +183,13 @@ void animateRetract() {
       //leds[dot] = CRGB::Black;
       delay(10);
       FastLED.show();
+  }
+  bladeActive = false;
+}
+
+// Print to serial out only if debug is enabled
+void serialPrint(String msg) {
+  if (debug) {
+    Serial.println(msg);
   }
 }
