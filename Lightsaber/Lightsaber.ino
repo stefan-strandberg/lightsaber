@@ -26,8 +26,8 @@
 #include "Button.h"
 #include "FastLED.h"
 
-#define BLADE_LEDS 90
 
+// ---------------------------- PINS -------------------------------
 #define GYRO_PIN 2
 #define BLADE_PIXEL_PIN 3
 #define CONTROL_PIXEL_PIN 4
@@ -37,32 +37,30 @@
 #define SOUND_PIN 8
 #define SPEAKER_PIN 9
 
-#define VOLUME 6
-
+// ---------------------------- SETTINGS -------------------------------
+#define DEBUG 1             // Show debug information if set to 1
+#define BLADE_LEDS 90       // Number of neopixel leds for the blade
 #define PULSE_ALLOW 1       // blade pulsation (1 - allow, 0 - disallow)
 #define PULSE_AMPL 20       // pulse amplitude
 #define PULSE_DELAY 30      // delay between pulses
+#define VOLUME 6            // Maximum volume (should probably not be changed if volume is controlled with potentiometer)
 
+// ---------------------------- VARIABLES -------------------------------
+CRGB pixels[BLADE_LEDS];    // Holds blade neopixels
+TMRpcm tmrpcm;              // Define tmrpcm used for sound playback
 
-CRGB pixels[BLADE_LEDS];
-TMRpcm tmrpcm;
+int pixelsPerSide = BLADE_LEDS / 2; // The neopixel strip is folded in half to light up both sides of the blade
 
-const bool debug = true;
+Button bladeButton(BLADE_BUTTON_PIN); // Button controlling the status of the blade
+Button characterButton(CHARACTER_BUTTON_PIN); // Button for selecting character
+Button soundButton(SOUND_PIN);  // Button to make a random sound from the current characters sound bank
 
-int pixelsPerSide = BLADE_LEDS / 2;
-int buttonState = 0;
-int extended = 0;
-
-Button bladeButton(BLADE_BUTTON_PIN);
-Button characterButton(CHARACTER_BUTTON_PIN);
-Button soundButton(SOUND_PIN);
-
-byte nowColor, red, green, blue, redOffset, greenOffset, blueOffset;
-unsigned long PULSE_timer;
-bool bladeActive;
+byte red, green, blue, redOffset, greenOffset, blueOffset; // RGB color information and offsets
+unsigned long PULSE_timer; // Time since last pulse
 int PULSEOffset;
 
-float k = 0.2;
+float k = 0.2; 
+bool bladeActive; 
 
 void setup() {
   
@@ -120,7 +118,6 @@ void bladePulse(){
     if (PULSE_ALLOW && bladeActive && (millis() - PULSE_timer > PULSE_DELAY)) {
       PULSE_timer = millis();
       PULSEOffset = PULSEOffset * k + random(-PULSE_AMPL, PULSE_AMPL) * (1 - k);
-      if (nowColor == 0) PULSEOffset = constrain(PULSEOffset, -15, 5);
       redOffset = constrain(red + PULSEOffset, 0, 255);
       greenOffset = constrain(green + PULSEOffset, 0, 255);
       blueOffset = constrain(blue + PULSEOffset, 0, 255);
@@ -189,7 +186,7 @@ void animateRetract() {
 
 // Print to serial out only if debug is enabled
 void serialPrint(String msg) {
-  if (debug) {
+  if (DEBUG) {
     Serial.println(msg);
   }
 }
