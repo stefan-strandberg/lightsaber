@@ -78,7 +78,69 @@ float k = 0.2;
 bool bladeActive; 
 bool firstLoop = true;
 
+// --------------------------------- SOUNDS ----------------------------------
+const char strike1[] PROGMEM = "SK1.wav";
+const char strike2[] PROGMEM = "SK2.wav";
+const char strike3[] PROGMEM = "SK3.wav";
+const char strike4[] PROGMEM = "SK4.wav";
+const char strike5[] PROGMEM = "SK5.wav";
+const char strike6[] PROGMEM = "SK6.wav";
+const char strike7[] PROGMEM = "SK7.wav";
+const char strike8[] PROGMEM = "SK8.wav";
 
+const char* const strikes[] PROGMEM  = {
+  strike1, strike2, strike3, strike4, strike5, strike6, strike7, strike8
+};
+
+int strike_time[8] = {779, 563, 687, 702, 673, 661, 666, 635};
+
+const char strike_s1[] PROGMEM = "SKS1.wav";
+const char strike_s2[] PROGMEM = "SKS2.wav";
+const char strike_s3[] PROGMEM = "SKS3.wav";
+const char strike_s4[] PROGMEM = "SKS4.wav";
+const char strike_s5[] PROGMEM = "SKS5.wav";
+const char strike_s6[] PROGMEM = "SKS6.wav";
+const char strike_s7[] PROGMEM = "SKS7.wav";
+const char strike_s8[] PROGMEM = "SKS8.wav";
+
+const char* const strikes_short[] PROGMEM = {
+  strike_s1, strike_s2, strike_s3, strike_s4,
+  strike_s5, strike_s6, strike_s7, strike_s8
+};
+int strike_s_time[8] = {270, 167, 186, 250, 252, 255, 250, 238};
+
+const char swing1[] PROGMEM = "SWS1.wav";
+const char swing2[] PROGMEM = "SWS2.wav";
+const char swing3[] PROGMEM = "SWS3.wav";
+const char swing4[] PROGMEM = "SWS4.wav";
+const char swing5[] PROGMEM = "SWS5.wav";
+
+const char* const swings[] PROGMEM  = {
+  swing1, swing2, swing3, swing4, swing5
+};
+int swing_time[8] = {389, 372, 360, 366, 337};
+
+const char swingL1[] PROGMEM = "SWL1.wav";
+const char swingL2[] PROGMEM = "SWL2.wav";
+const char swingL3[] PROGMEM = "SWL3.wav";
+const char swingL4[] PROGMEM = "SWL4.wav";
+
+const char* const swings_L[] PROGMEM  = {
+  swingL1, swingL2, swingL3, swingL4
+};
+int swing_time_L[8] = {636, 441, 772, 702};
+
+char BUFFER[10];
+
+// --------------------------------- CHARACTERS ----------------------------------
+// 0 - Darth Vader, Red
+// 1 - Kylo Ren, Red
+// 2 - Darth Sidious, Red
+// 3 - Luke Skywalker, Blue
+// 4 - Yoda, Green
+// 5 - Obi Wan kenobi, Blue
+// 6 - Mace Windu, Purple
+// ---------------------------------------------------------------------------
 
 void setup() {
   
