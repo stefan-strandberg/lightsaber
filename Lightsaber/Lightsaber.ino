@@ -1,30 +1,8 @@
 
-
-/*
-  ### SD CARD ###
-  SD card attached to SPI bus as follows:
-    * MOSI - pin 11
-    * MISO - pin 12
-    * CLK - pin 13
-    * CS - pin 4 (for MKRZero SD: SDCARD_SS_PIN)
-
-  ### GYRO ###
-  Gyro attached to I2C bus
-
-  ### CONTROL BUTTONS ###
-  * Led button extend and retract blade
-  * Control button to change blade color/character
-  * Control button to make random character noice
-
-
-*/
-
 #include <SPI.h>
-//#include <SD.h>
 #include <SdFat.h>
-SdFat SD;
 #include <TMRpcm.h>
-#include "I2Cdev.h"
+//s#include "I2Cdev.h"
 #include <ezButton.h>
 #include "FastLED.h"
 #include "MPU6050.h"
@@ -55,21 +33,21 @@ extern char *__brkval;
 #define PULSE_DELAY 30      // delay between pulses
 #define VOLUME 6           // Maximum volume (should probably not be changed if volume is controlled with potentiometer)
 #define INTERRUPT_PIN 2
-// ---------------------------- VARIABLES -------------------------------
 #define SD_ChipSelectPin 3
+// ---------------------------- VARIABLES -------------------------------
+
 CRGB pixels[BLADE_LEDS];    // Holds blade neopixels
 CRGB controlPixels[CONTROL_LEDS];
 TMRpcm tmrpcm;              // Define tmrpcm used for sound playback
+SdFat SD;
 MPU6050 accelgyro;
 
 int pixelsPerSide = BLADE_LEDS / 2; // The neopixel strip is folded in half to light up both sides of the blade
 
-/*
-Button bladeButton(BLADE_BUTTON_PIN); // Button controlling the status of the blade
-Button characterButton(CHARACTER_BUTTON_PIN); // Button for selecting character
-Button soundButton(SOUND_PIN);  // Button to make a random sound from the current characters sound bank
-*/
-ezButton  bladeButton(BLADE_BUTTON_PIN);
+ezButton bladeButton(BLADE_BUTTON_PIN); // Button controlling the status of the blade
+ezButton characterButton(CHARACTER_BUTTON_PIN); // Button for selecting character
+ezButton soundButton(SOUND_PIN);  // Button to make a random sound from the current characters sound bank
+
 byte red, green, blue, redOffset, greenOffset, blueOffset; // RGB color information and offsets
 unsigned long PULSE_timer; // Time since last pulse
 int PULSEOffset;
@@ -151,7 +129,6 @@ void setup() {
   }
 
   Serial.println("Initializing SD card...");
-
   if (!SD.begin(3)) {
     //TODO: Play sound to indicate failure
     Serial.println("initialization failed!");
@@ -162,25 +139,21 @@ void setup() {
   tmrpcm.speakerPin = SPEAKER_PIN;
   tmrpcm.setVolume(VOLUME);
   tmrpcm.quality(1);
-/*
-  bladeButton.begin();
-  characterButton.begin();
-  soundButton.begin();
-*/
-bladeButton.setDebounceTime(50);
-  setColor(0);
+
+  bladeButton.setDebounceTime(50);
+  characterButton.setDebounceTime(50);
+  soundButton.setDebounceTime(50);
+  
+  setColor(0); // TODO load from eprom
 
   pinMode(BLADE_BUTTON_LED_PIN, OUTPUT);
   digitalWrite(BLADE_BUTTON_LED_PIN, HIGH);
-//FastLED.addLeds<NEOPIXEL, CONTROL_PIXEL_PIN>(controlPixels, CONTROL_LEDS);
-Serial.print(F("Free memory start:"));
-Serial.println(freeMemory());
- FastLED.addLeds<NEOPIXEL, BLADE_PIXEL_PIN>(pixels, BLADE_LEDS);
- Serial.print(F("Free memory after:"));
-Serial.println(freeMemory());
-//controlPixels[0] = CRGB::White; FastLED.show();
-digitalWrite(BLADE_BUTTON_LED_PIN, HIGH);
-Serial.println(F("Initializing I2C devices..."));
+  
+  //FastLED.addLeds<NEOPIXEL, CONTROL_PIXEL_PIN>(controlPixels, CONTROL_LEDS);
+  FastLED.addLeds<NEOPIXEL, BLADE_PIXEL_PIN>(pixels, BLADE_LEDS);
+  
+  
+  Serial.println(F("Initializing I2C devices..."));
   // IMU initialization
   accelgyro.initialize();
   pinMode(INTERRUPT_PIN, INPUT);
@@ -190,11 +163,6 @@ Serial.println(F("Initializing I2C devices..."));
     if (accelgyro.testConnection()) Serial.println(F("MPU6050 OK"));
     else Serial.println(F("MPU6050 fail"));
   }
-
-
-Serial.print(F("Free memory start:"));
-Serial.println(freeMemory());
-
 }
 
 
@@ -211,19 +179,14 @@ void setColor(byte color){
 
 void loop() {
   
- // bladePulse();
+  bladePulse();
   //getFreq();
   checkInput();
   //tick();
   //strike();
   //swing();
- // tmrpcm.play("ON.wav");
-   // controlPixels[0] = CRGB::White; FastLED.show(); delay(30);
- // controlPixels[0] = CRGB::Black; FastLED.show(); delay(30);
-  //delay(20);
-    Serial.println(freeMemory());
+  Serial.println(freeMemory());
   delay(20);
-
   
 }
 
@@ -254,98 +217,58 @@ void setAllBladePixels(byte red, byte green, byte blue) {
 void checkInput() {
   
   bladeButton.loop();
-  if (!firstLoop){
-  if(bladeButton.isPressed()){
-          if (bladeActive != true) {
-       animateExtend();
-        //serialPrint(F("Blade Extend"));
-        digitalWrite(BLADE_BUTTON_LED_PIN, HIGH);
-     
-      }
-      else if(bladeActive == true) {
-    animateRetract();
-        //serialPrint(F("Blade Retracted"));
-        digitalWrite(BLADE_BUTTON_LED_PIN, LOW);
-     
-       
-      }
-  }
+  characterButton.loop();
+  soundButton.loop();
   
-  }
-  firstLoop=false;
-  /*
-  if (bladeButton.toggled()) {
-     if (bladeButton.read() == Button::PRESSED) {
+  if (!firstLoop){ // Hack that skips first loop
+    if(bladeButton.isPressed()){
       if (bladeActive != true) {
-       // animateExtend();
-        serialPrint("Blade Extend");
-        digitalWrite(BLADE_BUTTON_LED_PIN, HIGH);
-        
-      }
+         animateExtend();
+          digitalWrite(BLADE_BUTTON_LED_PIN, HIGH);
+       
+        }
       else {
         animateRetract();
-        serialPrint("Blade Retract");
-        digitalWrite(BLADE_BUTTON_LED_PIN, LOW);
-      }
-    } 
+         digitalWrite(BLADE_BUTTON_LED_PIN, LOW);
+       }
+    }
+
+    if(characterButton.isPressed()){
+      // Character button
+    }
+
+    if(soundButton.isPressed()){   
+      //Sound button
+    }
   }
-  if (characterButton.toggled()) {
-     if (characterButton.read() == Button::PRESSED) {
-        serialPrint("Character changed");
-        
-      }
-    } 
-  if (soundButton.toggled()) {
-     if (soundButton.read() == Button::PRESSED) {
-        serialPrint("Play character sound");
-        
-      }
-    } 
-    delay(20);
-    */
+  firstLoop=false;
 }
 
 
 void animateExtend() {
- // pixels[0] = CRGB::Red; FastLED.show();
- tmrpcm.play("ON.wav");
+  tmrpcm.play("ON.wav");
   for(int dot = 0; dot <= (BLADE_LEDS / 2 - 1); dot++) { 
       pixels[dot] = CRGB::Red;
       pixels[BLADE_LEDS - 1 - dot] = CRGB::Red;
-      Serial.println(dot);
-      // clear this led for the next time around the loop
-      //leds[dot] = CRGB::Black;
       delay(10);
       FastLED.show();
-  }
-  
+  }  
   bladeActive = true;
-
 }
   
 
 void animateRetract() {
-   tmrpcm.play("OFF.wav");
+  tmrpcm.play("OFF.wav");
   for(int dot = (BLADE_LEDS / 2 - 1); dot >= 0; dot--) { 
      Serial.println(dot);
       pixels[dot] = CRGB::Black;
       pixels[BLADE_LEDS - 1 - dot] = CRGB::Black;
-      
-      // clear this led for the next time around the loop
-      //leds[dot] = CRGB::Black;
       delay(10);
       FastLED.show();
   }
   bladeActive = false;
- 
 }
 
-// Print to serial out only if debug is enabled
-void serialPrint(String msg) {
-  if (DEBUG) {
-    Serial.println(msg);
-  }
-}
 
 
 int freeMemory() {
