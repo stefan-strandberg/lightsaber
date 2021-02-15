@@ -1,4 +1,16 @@
 
+/*
+ TODO:
+ * Hum sound effect when blade is extended
+ * Swing sound when swinging
+ * Hit sound when hitting
+ * Light effect when hitting
+ * Play sound when sound button is pressed
+ *  - Gather sound effects
+ *  Character selection
+ *   - Unique sounds
+ *   - Blade color
+ */
 #include <SPI.h>
 #include <SdFat.h>
 #include <TMRpcm.h>
