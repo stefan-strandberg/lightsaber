@@ -53,7 +53,7 @@ extern char *__brkval;
 #define SWING_THR 300       // fast swing angle speed threshold
 #define STRIKE_THR 150      // hit acceleration threshold
 #define STRIKE_S_THR 320    // hard hit acceleration threshold
-#define FLASH_DELAY 80      // flash time while hit
+#define FLASH_DELAY 200      // flash time while hit
 // ---------------------------- VARIABLES -------------------------------
 
 CRGB pixels[BLADE_LEDS];    // Holds blade neopixels
@@ -83,6 +83,7 @@ bool firstLoop = true;
 boolean swing_flag, swing_allow, strike_flag;
 unsigned long humTimer = -9000, mpuTimer;
 byte nowNumber;
+byte currentCharacter;
 // --------------------------------- SOUNDS ----------------------------------
 
 const char* humSound = "HUM.wav";
@@ -137,22 +138,79 @@ const char swingL4[] PROGMEM = "SWL4.wav";
 const char* const swings_L[] PROGMEM  = {
   swingL1, swingL2, swingL3, swingL4
 };
+
 int swing_time_L[8] = {636, 441, 772, 702};
+
+const char vader1[] PROGMEM = "vader-as-you-wish.wav";
+const char vader2[] PROGMEM = "vader-bidding.wav";
+const char vader3[] PROGMEM = "vader-breath.wav";
+const char vader4[] PROGMEM = "vader-fail-me.wav";
+const char vader5[] PROGMEM = "vader-father.wav";
+const char vader6[] PROGMEM = "vader-force.wav";
+const char vader7[] PROGMEM = "vader-have-you.wav";
+const char vader8[] PROGMEM = "vader-lack-of.wav";
+const char vader9[] PROGMEM = "vader-yes-master.wav";
+
+const char* const vader_sound[] PROGMEM  = {
+  vader1, vader2, vader3, vader4, vader5, vader6, vader7, vader8, vader9
+};
+
+const char palpatine1[] PROGMEM = "palpatine-force-is-strong.wav";
+const char palpatine2[] PROGMEM = "palpatine-no.wav";
+const char palpatine3[] PROGMEM = "palpatine-power-of-the-darkside.wav";
+const char palpatine4[] PROGMEM = "palpatine-secret.wav";
+const char palpatine5[] PROGMEM = "palpatine-so-be-it.wav";
+const char palpatine6[] PROGMEM = "palpatine-threat.wav";
+const char palpatine7[] PROGMEM = "palpatine-kill-him.wav";
+
+const char* const palpatine_sound[] PROGMEM  = {
+  palpatine1, palpatine2, palpatine3, palpatine4, palpatine5, palpatine6, palpatine7
+};
+
+const char ren1[] PROGMEM = "ren-nothing-will-stand.wav";
+const char ren2[] PROGMEM = "ren-show-you.wav";
+
+const char* const ren_sound[] PROGMEM  = {
+  ren1, ren2
+};
+
+const char kenobi1[] PROGMEM = "kenobi-force-flowing.wav";
+const char kenobi2[] PROGMEM = "kenobi-great-disturbance.wav";
+const char kenobi3[] PROGMEM = "kenobi-more-powerful.wav";
+const char kenobi4[] PROGMEM = "kenobi-the-Force-will-be-with-you.wav";
+const char kenobi5[] PROGMEM = "kenobi-ways-of-the-force.wav";
+
+const char* const kenobi_sound[] PROGMEM  = {
+  kenobi1, kenobi2, kenobi3, kenobi4, kenobi5
+};
+
+const char skywalker1[] PROGMEM = "skywalker-bad-feeling.wav";
+const char skywalker2[] PROGMEM = "skywalker-become-yedi.wav";
+const char skywalker3[] PROGMEM = "skywalker-call-me.wav";
+const char skywalker4[] PROGMEM = "skywalker-darkside.wav";
+const char skywalker5[] PROGMEM = "skywalker-junk.wav";
+
+const char* const skywalker_sound[] PROGMEM  = {
+  skywalker1, skywalker2, skywalker3, skywalker4, skywalker5
+};
+
+const char yoda1[] PROGMEM = "yoda-become.wav";
+const char yoda2[] PROGMEM = "yoda-control.wav";
+const char yoda3[] PROGMEM = "yoda-fear.wav";
+const char yoda4[] PROGMEM = "yoda-no.wav";
+const char yoda5[] PROGMEM = "yoda-strong.wav";
+const char yoda6[] PROGMEM = "yoda-use-the-force.wav";
+
+const char* const yoda_sound[] PROGMEM  = {
+  yoda1, yoda2, yoda3, yoda4, yoda5
+};
+
+char* character_sound_bank[10];
+byte totalCharacterSounds;
 
 char BUFFER[10];
 
-// --------------------------------- CHARACTERS ----------------------------------
-// 0 - Darth Vader, Red
-// 1 - Kylo Ren, Red
-// 2 - Darth Sidious, Red
-// 3 - Luke Skywalker, Blue
-// 4 - Yoda, Green
-// 5 - Obi Wan kenobi, Blue
-// 6 - Mace Windu, Purple
-// ---------------------------------------------------------------------------
-
 void setup() {
-  
   // Open serial communications and wait for port to open:
   Serial.begin(9600);
   while (!Serial) {
@@ -169,13 +227,13 @@ void setup() {
   
   tmrpcm.speakerPin = SPEAKER_PIN;
   tmrpcm.setVolume(VOLUME);
-  tmrpcm.quality(0);
+  tmrpcm.quality(1);
 
   bladeButton.setDebounceTime(50);
   characterButton.setDebounceTime(50);
   soundButton.setDebounceTime(50);
-  
-  setColor(0); // TODO load from eprom
+  currentCharacter = 0;
+  setCharacter(currentCharacter); // TODO load from eprom
 
   pinMode(BLADE_BUTTON_LED_PIN, OUTPUT);
   digitalWrite(BLADE_BUTTON_LED_PIN, HIGH);
@@ -196,31 +254,20 @@ void setup() {
   }
 }
 
-
-void setColor(byte color){
-  switch (color) {
-    // 0 - red
-    case 0:
-      red = 255;
-      green = 0;
-      blue = 0;
-      break;
-  }
-}
-
 void loop() {
   
- // bladePulse();
+  bladePulse();
   humTick();
-  //getFreq();
+  getFreq();
   checkInput();
-  //swingTick();
-  //strike();
+  swingTick();
+  strikeTick();
   //swing();
  // Serial.println(freeMemory());
   //delay(20);
   
 }
+
 
 void bladePulse(){
     if (PULSE_ALLOW && bladeActive && (millis() - PULSE_timer > PULSE_DELAY)) {
@@ -234,11 +281,10 @@ void bladePulse(){
 }
 
 void humTick() {
-    Serial.println(millis() - humTimer);
     // Hum sound mode
     if (((millis() - humTimer) > 9000) && bladeActive) {
       Serial.println(F("HUMMMM!"));
-      tmrpcm.play("hum2.wav");
+      //tmrpcm.play("hum2.wav");
       humTimer = millis();
       swing_flag = 1;
       strike_flag = 0;
@@ -266,6 +312,7 @@ void setPixel(short Pixel, byte red, byte green, byte blue) {
 void setAllBladePixels(byte red, byte green, byte blue) {
   for (int i = 0; i < BLADE_LEDS; i++ ) {
     setPixel(i, red, green, blue);
+    
   }
   FastLED.show();
 }
@@ -292,13 +339,15 @@ void checkInput() {
 
     if(characterButton.isPressed()){
       // Character button
-              tmrpcm.play("HUM.wav");
-        delay(200);
+      currentCharacter++;
+      if(currentCharacter < 6) {
+        currentCharacter = 0;
+      }
+      setCharacter(currentCharacter);
     }
 
     if(soundButton.isPressed()){   
-      tmrpcm.play("hum2.wav");
-      //Sound button
+      playCharacterSound();
     }
   }
   firstLoop=false;
@@ -366,10 +415,12 @@ void getFreq() {
 }
 
 void swingTick() {
+  //Serial.println(freeMemory());
   if (GYR > 80 && (millis() - swing_timeout > 100)) {
     swing_timeout = millis();
     if (((millis() - swing_timer) > SWING_TIMEOUT) && swing_flag && !strike_flag) {
-      if (GYR >= SWING_THR) {      
+      if (GYR >= SWING_THR) {    
+        Serial.println(F("SWING1"));
         nowNumber = random(5);          
         strcpy_P(BUFFER, (char*)pgm_read_word(&(swings[nowNumber])));
         tmrpcm.play(BUFFER);
@@ -377,25 +428,31 @@ void swingTick() {
         swing_flag = 0;
         swing_timer = millis();
         swing_allow = 0;
+         
       }
       if ((GYR > SWING_L_THR) && (GYR < SWING_THR)) {
-        nowNumber = random(5);            
+        
+        nowNumber = random(4);          
         strcpy_P(BUFFER, (char*)pgm_read_word(&(swings_L[nowNumber])));
+        Serial.println(F("SWING2"));
+        Serial.println(nowNumber);
         tmrpcm.play(BUFFER);              
         humTimer = millis() - 9000 + swing_time_L[nowNumber];
         swing_flag = 0;
         swing_timer = millis();
         swing_allow = 0;
+         
       }
     }
   }
 }
 
 void strikeTick() {
+  
   if ((ACC > STRIKE_THR) && (ACC < STRIKE_S_THR)) {
+    Serial.println(F("STRIKE1"));
     //if (!HUMmode) noToneAC();
-    nowNumber = random(8);
-    // читаем название трека из PROGMEM
+    nowNumber = random(7);
     strcpy_P(BUFFER, (char*)pgm_read_word(&(strikes_short[nowNumber])));
     tmrpcm.play(BUFFER);
     hit_flash();
@@ -406,9 +463,9 @@ void strikeTick() {
     strike_flag = 1;
   }
   if (ACC >= STRIKE_S_THR) {
+    Serial.println(F("STRIKE1"));
     //if (!HUMmode) noToneAC();
-    nowNumber = random(8);
-    // читаем название трека из PROGMEM
+    nowNumber = random(7);
     strcpy_P(BUFFER, (char*)pgm_read_word(&(strikes[nowNumber])));
     tmrpcm.play(BUFFER);
     hit_flash();
@@ -426,6 +483,68 @@ void hit_flash() {
   setAllBladePixels(red, blue, green);        
 }
 
+
+void setCharacter(byte charId){
+
+  switch (charId) {
+    case 0: // Darth Vader
+      red = 255;
+      green = 0;
+      blue = 0;
+      loadSoundBank(vader_sound);
+      break;
+    case 1: // Kylo Ren
+      red = 255;
+      green = 0;
+      blue = 0;
+      loadSoundBank(ren_sound);
+      break;
+     case 2: // Darth Sidious
+      red = 255;
+      green = 0;
+      blue = 0;
+      loadSoundBank(palpatine_sound);
+      break;
+     case 3: // Luke Skywalker
+      red = 0;
+      green = 0;
+      blue = 255;
+      loadSoundBank(skywalker_sound);
+      break;
+     case 4: // Yoda
+      red = 0;
+      green = 255;
+      blue = 0;
+      loadSoundBank(yoda_sound);
+      break;
+     case 5: // Obi Wan Kenobi
+      red = 0;
+      green = 0;
+      blue = 255;
+      loadSoundBank(kenobi_sound);
+      break;
+     case 6: // Mace Windu
+      red = 125;
+      green = 0;
+      blue = 125;
+      loadSoundBank(kenobi_sound);
+      break;   
+  }
+}
+
+void playCharacterSound() {
+  nowNumber = random(totalCharacterSounds);
+  strcpy_P(BUFFER, (char*)pgm_read_word(&(character_sound_bank[nowNumber])));
+  tmrpcm.play(BUFFER);
+}
+
+void loadSoundBank(const char* const* sounds){
+  totalCharacterSounds = 0;
+  for (byte i = 0; i < sizeof(sounds) - 1; i++) {
+          character_sound_bank[i] = sounds[i];
+          totalCharacterSounds++;
+   }
+}
 int freeMemory() {
   char top;
 #ifdef __arm__
