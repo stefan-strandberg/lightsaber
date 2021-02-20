@@ -18,7 +18,7 @@
 #include <ezButton.h>
 #include "FastLED.h"
 #include "MPU6050.h"
-#include <toneAC.h> 
+
 
 #ifdef __arm__
 // should use uinstd.h to define sbrk but Due causes a conflict
@@ -53,7 +53,7 @@ extern char *__brkval;
 #define SWING_THR 300       // fast swing angle speed threshold
 #define STRIKE_THR 150      // hit acceleration threshold
 #define STRIKE_S_THR 320    // hard hit acceleration threshold
-#define FLASH_DELAY 200      // flash time while hit
+#define FLASH_DELAY 300      // flash time while hit
 // ---------------------------- VARIABLES -------------------------------
 
 CRGB pixels[BLADE_LEDS];    // Holds blade neopixels
@@ -70,18 +70,17 @@ ezButton soundButton(SOUND_PIN);  // Button to make a random sound from the curr
 
 byte red, green, blue, redOffset, greenOffset, blueOffset; // RGB color information and offsets
 unsigned long PULSE_timer; // Time since last pulse
-unsigned long bzzTimer;
 int PULSEOffset;
 int16_t ax, ay, az;
 int16_t gx, gy, gz;
 int gyroX, gyroY, gyroZ, accelX, accelY, accelZ, freq, freq_f = 20;
 unsigned long ACC, GYR, COMPL;
 unsigned long swing_timer, swing_timeout;
-float k = 0.2; 
 bool bladeActive; 
+bool tmpActive;
 bool firstLoop = true;
 boolean swing_flag, swing_allow, strike_flag;
-unsigned long humTimer = -9000, mpuTimer;
+unsigned int humTimer = -9000, mpuTimer;
 byte nowNumber;
 byte currentCharacter;
 // --------------------------------- SOUNDS ----------------------------------
@@ -205,11 +204,11 @@ const char* const yoda_sound[] PROGMEM  = {
   yoda1, yoda2, yoda3, yoda4, yoda5
 };
 
-char* character_sound_bank[10];
-byte totalCharacterSounds;
 
 char BUFFER[10];
+char CHARBUFFER[100];
 
+CLEDController *controllers[2];
 void setup() {
   // Open serial communications and wait for port to open:
   Serial.begin(9600);
@@ -239,8 +238,10 @@ void setup() {
   digitalWrite(BLADE_BUTTON_LED_PIN, HIGH);
   
   //FastLED.addLeds<NEOPIXEL, CONTROL_PIXEL_PIN>(controlPixels, CONTROL_LEDS);
-  FastLED.addLeds<NEOPIXEL, BLADE_PIXEL_PIN>(pixels, BLADE_LEDS);
-  
+  //FastLED.addLeds<NEOPIXEL, BLADE_PIXEL_PIN>(pixels, BLADE_LEDS);
+  controllers[1] = &FastLED.addLeds<NEOPIXEL,CONTROL_PIXEL_PIN>(controlPixels, CONTROL_LEDS); // strip 1 on pin 2
+  controllers[0] = &FastLED.addLeds<NEOPIXEL,BLADE_PIXEL_PIN>(pixels, BLADE_LEDS); // strip 2 on pin 3
+  setAllControlPixels(255,0,0);
   
   Serial.println(F("Initializing I2C devices..."));
   // IMU initialization
@@ -255,7 +256,6 @@ void setup() {
 }
 
 void loop() {
-  
   bladePulse();
   humTick();
   getFreq();
@@ -272,7 +272,7 @@ void loop() {
 void bladePulse(){
     if (PULSE_ALLOW && bladeActive && (millis() - PULSE_timer > PULSE_DELAY)) {
       PULSE_timer = millis();
-      PULSEOffset = PULSEOffset * k + random(-PULSE_AMPL, PULSE_AMPL) * (1 - k);
+      PULSEOffset = PULSEOffset * 0.2 + random(-PULSE_AMPL, PULSE_AMPL) * (1 - 0.2);
       redOffset = constrain(red + PULSEOffset, 0, 255);
       greenOffset = constrain(green + PULSEOffset, 0, 255);
       blueOffset = constrain(blue + PULSEOffset, 0, 255);
@@ -284,7 +284,9 @@ void humTick() {
     // Hum sound mode
     if (((millis() - humTimer) > 9000) && bladeActive) {
       Serial.println(F("HUMMMM!"));
-      //tmrpcm.play("hum2.wav");
+      if(!tmrpcm.isPlaying()){
+        tmrpcm.play("hum2.wav");
+      }
       humTimer = millis();
       swing_flag = 1;
       strike_flag = 0;
@@ -314,7 +316,32 @@ void setAllBladePixels(byte red, byte green, byte blue) {
     setPixel(i, red, green, blue);
     
   }
-  FastLED.show();
+
+  controllers[0]->showLeds();
+}
+
+void setAllControlPixels(byte red, byte green, byte blue) {
+  Serial.println(F("SET PIXELS"));
+  for (int i = 0; i < CONTROL_LEDS; i++ ) {
+    setControlPixel(i, red, green, blue);
+    
+  }
+  controllers[1]->showLeds();
+}
+
+void setControlPixel(short Pixel, byte red, byte green, byte blue) {
+  controlPixels[Pixel].r = red;
+  controlPixels[Pixel].g = green;
+  controlPixels[Pixel].b = blue;
+}
+
+void setSomeBladePixels(byte red, byte green, byte blue) {
+  for (int i = 0; i < BLADE_LEDS; i++ ) {
+    setPixel(i, red, green, blue);
+    
+  }
+  controllers[0]->showLeds(100);
+
 }
 
 void checkInput() {
@@ -340,14 +367,14 @@ void checkInput() {
     if(characterButton.isPressed()){
       // Character button
       currentCharacter++;
-      if(currentCharacter < 6) {
+      if(currentCharacter > 6) {
         currentCharacter = 0;
       }
       setCharacter(currentCharacter);
     }
 
-    if(soundButton.isPressed()){   
-      playCharacterSound();
+    if(soundButton.isPressed()){ 
+        playCharacterSound();
     }
   }
   firstLoop=false;
@@ -357,10 +384,14 @@ void checkInput() {
 void animateExtend() {
   tmrpcm.play(onSound);
   for(int dot = 0; dot <= (BLADE_LEDS / 2 - 1); dot++) { 
-      pixels[dot] = CRGB::Red;
-      pixels[BLADE_LEDS - 1 - dot] = CRGB::Red;
-      delay(10);
-      FastLED.show();
+    pixels[dot].r = red;
+    pixels[dot].g = green;
+    pixels[dot].b = blue;
+    pixels[BLADE_LEDS - 1 - dot].r = red;
+    pixels[BLADE_LEDS - 1 - dot].g = green;
+    pixels[BLADE_LEDS - 1 - dot].b = blue;
+    delay(10);
+    controllers[0]->showLeds();
   }  
   bladeActive = true;
 }
@@ -372,7 +403,7 @@ void animateRetract() {
       pixels[dot] = CRGB::Black;
       pixels[BLADE_LEDS - 1 - dot] = CRGB::Black;
       delay(10);
-      FastLED.show();
+      controllers[0]->showLeds();
   }
   bladeActive = false;
 }
@@ -408,7 +439,7 @@ void getFreq() {
       */
       freq = (long)COMPL * COMPL / 1500;                        // parabolic tone change
       freq = constrain(freq, 18, 300);                          
-      freq_f = freq * k + freq_f * (1 - k);                     // smooth filter
+      freq_f = freq * 0.2 + freq_f * (1 - 0.2);                     // smooth filter
       mpuTimer = micros();                                     
     }
   }
@@ -436,7 +467,7 @@ void swingTick() {
         strcpy_P(BUFFER, (char*)pgm_read_word(&(swings_L[nowNumber])));
         Serial.println(F("SWING2"));
         Serial.println(nowNumber);
-        tmrpcm.play(BUFFER);              
+        tmrpcm.play(BUFFER);            
         humTimer = millis() - 9000 + swing_time_L[nowNumber];
         swing_flag = 0;
         swing_timer = millis();
@@ -454,7 +485,7 @@ void strikeTick() {
     //if (!HUMmode) noToneAC();
     nowNumber = random(7);
     strcpy_P(BUFFER, (char*)pgm_read_word(&(strikes_short[nowNumber])));
-    tmrpcm.play(BUFFER);
+    tmrpcm.play(BUFFER); 
     hit_flash();
 //    if (!HUMmode)
 //      bzzTimer = millis() + strike_s_time[nowNumber] - FLASH_DELAY;
@@ -467,7 +498,7 @@ void strikeTick() {
     //if (!HUMmode) noToneAC();
     nowNumber = random(7);
     strcpy_P(BUFFER, (char*)pgm_read_word(&(strikes[nowNumber])));
-    tmrpcm.play(BUFFER);
+      tmrpcm.play(BUFFER); 
     hit_flash();
     //if (!HUMmode)
     //  bzzTimer = millis() + strike_time[nowNumber] - FLASH_DELAY;
@@ -478,73 +509,91 @@ void strikeTick() {
 }
 
 void hit_flash() {
-  setAllBladePixels(255, 255, 255);            
+  //setAllBladePixels(255, 255, 255);    
+ // setAllBladePixels(redOffset, greenOffset, blueOffset);   
+ setSomeBladePixels(200, 200, 200);    
   delay(FLASH_DELAY);                
   setAllBladePixels(red, blue, green);        
 }
 
 
 void setCharacter(byte charId){
-
+  Serial.println(charId);
   switch (charId) {
     case 0: // Darth Vader
       red = 255;
       green = 0;
       blue = 0;
-      loadSoundBank(vader_sound);
       break;
     case 1: // Kylo Ren
       red = 255;
       green = 0;
       blue = 0;
-      loadSoundBank(ren_sound);
       break;
      case 2: // Darth Sidious
       red = 255;
       green = 0;
       blue = 0;
-      loadSoundBank(palpatine_sound);
       break;
      case 3: // Luke Skywalker
       red = 0;
       green = 0;
       blue = 255;
-      loadSoundBank(skywalker_sound);
       break;
      case 4: // Yoda
       red = 0;
       green = 255;
       blue = 0;
-      loadSoundBank(yoda_sound);
       break;
      case 5: // Obi Wan Kenobi
       red = 0;
       green = 0;
       blue = 255;
-      loadSoundBank(kenobi_sound);
       break;
      case 6: // Mace Windu
       red = 125;
       green = 0;
       blue = 125;
-      loadSoundBank(kenobi_sound);
       break;   
   }
 }
 
 void playCharacterSound() {
-  nowNumber = random(totalCharacterSounds);
-  strcpy_P(BUFFER, (char*)pgm_read_word(&(character_sound_bank[nowNumber])));
-  tmrpcm.play(BUFFER);
+  switch(currentCharacter){
+    case 0:
+      strcpy_P(CHARBUFFER, (char*)pgm_read_word(&(vader_sound[random(8)])));
+      tmrpcm.play(CHARBUFFER);
+      currentCharacter = 0;
+      break;
+    case 1: // Kylo Ren
+      strcpy_P(CHARBUFFER, (char*)pgm_read_word(&(ren_sound[random(1)])));
+      tmrpcm.play(CHARBUFFER);
+      currentCharacter = 1;
+      break;
+     case 2: // Darth Sidious
+
+      strcpy_P(CHARBUFFER, (char*)pgm_read_word(&(palpatine_sound[random(6)])));
+      tmrpcm.play(CHARBUFFER);
+      currentCharacter = 2;
+      break;
+     case 3: // Luke Skywalker
+      strcpy_P(CHARBUFFER, (char*)pgm_read_word(&(skywalker_sound[random(4)])));
+      tmrpcm.play(CHARBUFFER);
+      currentCharacter = 3;
+      break;
+     case 4: // Yoda
+      strcpy_P(CHARBUFFER, (char*)pgm_read_word(&(yoda_sound[random(4)])));
+      tmrpcm.play(CHARBUFFER);
+      currentCharacter = 4;
+      break;
+     case 5: // Obi Wan Kenobi
+      strcpy_P(CHARBUFFER, (char*)pgm_read_word(&(kenobi_sound[random(4)])));
+      tmrpcm.play(CHARBUFFER);
+      currentCharacter = 5;
+      break; 
+  }
 }
 
-void loadSoundBank(const char* const* sounds){
-  totalCharacterSounds = 0;
-  for (byte i = 0; i < sizeof(sounds) - 1; i++) {
-          character_sound_bank[i] = sounds[i];
-          totalCharacterSounds++;
-   }
-}
 int freeMemory() {
   char top;
 #ifdef __arm__
