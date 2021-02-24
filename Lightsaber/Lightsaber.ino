@@ -33,8 +33,8 @@ extern char *__brkval;
 #define CONTROL_PIXEL_PIN 5
 #define BLADE_BUTTON_PIN A1
 #define BLADE_BUTTON_LED_PIN 6 
-#define CHARACTER_BUTTON_PIN 7
-#define SOUND_PIN 4
+#define CHARACTER_BUTTON_PIN 4
+#define SOUND_PIN 7
 #define SPEAKER_PIN 9
 
 // ---------------------------- SETTINGS -------------------------------
@@ -51,8 +51,8 @@ extern char *__brkval;
 #define SWING_TIMEOUT 500   // timeout between swings
 #define SWING_L_THR 150     // swing angle speed threshold
 #define SWING_THR 300       // fast swing angle speed threshold
-#define STRIKE_THR 150      // hit acceleration threshold
-#define STRIKE_S_THR 320    // hard hit acceleration threshold
+#define STRIKE_THR 80      // hit acceleration threshold
+#define STRIKE_S_THR 150    // hard hit acceleration threshold
 #define FLASH_DELAY 300      // flash time while hit
 // ---------------------------- VARIABLES -------------------------------
 
@@ -166,11 +166,14 @@ const char* const palpatine_sound[] PROGMEM  = {
   palpatine1, palpatine2, palpatine3, palpatine4, palpatine5, palpatine6, palpatine7
 };
 
-const char ren1[] PROGMEM = "ren-nothing-will-stand.wav";
-const char ren2[] PROGMEM = "ren-show-you.wav";
+const char ren1[] PROGMEM = "ren-show-you.wav";
+const char ren2[] PROGMEM = "ren-power.wav";
+const char ren3[] PROGMEM = "ren-kill.wav";
+const char ren4[] PROGMEM = "ren-nothing.wav";
+const char ren5[] PROGMEM = "ren-old.wav";
 
 const char* const ren_sound[] PROGMEM  = {
-  ren1, ren2
+  ren1, ren2, ren3, ren4, ren5
 };
 
 const char kenobi1[] PROGMEM = "kenobi-force-flowing.wav";
@@ -206,9 +209,10 @@ const char* const yoda_sound[] PROGMEM  = {
 
 
 char BUFFER[10];
-char CHARBUFFER[100];
+char CHARBUFFER[60];
 
 CLEDController *controllers[2];
+
 void setup() {
   // Open serial communications and wait for port to open:
   Serial.begin(9600);
@@ -233,7 +237,7 @@ void setup() {
   soundButton.setDebounceTime(50);
   currentCharacter = 0;
   setCharacter(currentCharacter); // TODO load from eprom
-
+  
   pinMode(BLADE_BUTTON_LED_PIN, OUTPUT);
   digitalWrite(BLADE_BUTTON_LED_PIN, HIGH);
   
@@ -241,7 +245,7 @@ void setup() {
   //FastLED.addLeds<NEOPIXEL, BLADE_PIXEL_PIN>(pixels, BLADE_LEDS);
   controllers[1] = &FastLED.addLeds<NEOPIXEL,CONTROL_PIXEL_PIN>(controlPixels, CONTROL_LEDS); // strip 1 on pin 2
   controllers[0] = &FastLED.addLeds<NEOPIXEL,BLADE_PIXEL_PIN>(pixels, BLADE_LEDS); // strip 2 on pin 3
-  setAllControlPixels(255,0,0);
+  setAllControlPixels(100,0,0);
   
   Serial.println(F("Initializing I2C devices..."));
   // IMU initialization
@@ -277,13 +281,13 @@ void bladePulse(){
       greenOffset = constrain(green + PULSEOffset, 0, 255);
       blueOffset = constrain(blue + PULSEOffset, 0, 255);
       setAllBladePixels(redOffset, greenOffset, blueOffset);
+      setAllControlPixels(redOffset, greenOffset, blueOffset);
     }
 }
 
 void humTick() {
     // Hum sound mode
     if (((millis() - humTimer) > 9000) && bladeActive) {
-      Serial.println(F("HUMMMM!"));
       if(!tmrpcm.isPlaying()){
         tmrpcm.play("hum2.wav");
       }
@@ -317,16 +321,15 @@ void setAllBladePixels(byte red, byte green, byte blue) {
     
   }
 
-  controllers[0]->showLeds();
+  controllers[0]->showLeds(150);
 }
 
 void setAllControlPixels(byte red, byte green, byte blue) {
-  Serial.println(F("SET PIXELS"));
   for (int i = 0; i < CONTROL_LEDS; i++ ) {
     setControlPixel(i, red, green, blue);
     
   }
-  controllers[1]->showLeds();
+  controllers[1]->showLeds(50);
 }
 
 void setControlPixel(short Pixel, byte red, byte green, byte blue) {
@@ -371,6 +374,7 @@ void checkInput() {
         currentCharacter = 0;
       }
       setCharacter(currentCharacter);
+      setAllControlPixels(red, green, blue);
     }
 
     if(soundButton.isPressed()){ 
@@ -391,7 +395,7 @@ void animateExtend() {
     pixels[BLADE_LEDS - 1 - dot].g = green;
     pixels[BLADE_LEDS - 1 - dot].b = blue;
     delay(10);
-    controllers[0]->showLeds();
+    controllers[0]->showLeds(150);
   }  
   bladeActive = true;
 }
@@ -403,7 +407,7 @@ void animateRetract() {
       pixels[dot] = CRGB::Black;
       pixels[BLADE_LEDS - 1 - dot] = CRGB::Black;
       delay(10);
-      controllers[0]->showLeds();
+      controllers[0]->showLeds(150);
   }
   bladeActive = false;
 }
@@ -451,7 +455,6 @@ void swingTick() {
     swing_timeout = millis();
     if (((millis() - swing_timer) > SWING_TIMEOUT) && swing_flag && !strike_flag) {
       if (GYR >= SWING_THR) {    
-        Serial.println(F("SWING1"));
         nowNumber = random(5);          
         strcpy_P(BUFFER, (char*)pgm_read_word(&(swings[nowNumber])));
         tmrpcm.play(BUFFER);
@@ -465,8 +468,6 @@ void swingTick() {
         
         nowNumber = random(4);          
         strcpy_P(BUFFER, (char*)pgm_read_word(&(swings_L[nowNumber])));
-        Serial.println(F("SWING2"));
-        Serial.println(nowNumber);
         tmrpcm.play(BUFFER);            
         humTimer = millis() - 9000 + swing_time_L[nowNumber];
         swing_flag = 0;
@@ -479,9 +480,7 @@ void swingTick() {
 }
 
 void strikeTick() {
-  
   if ((ACC > STRIKE_THR) && (ACC < STRIKE_S_THR)) {
-    Serial.println(F("STRIKE1"));
     //if (!HUMmode) noToneAC();
     nowNumber = random(7);
     strcpy_P(BUFFER, (char*)pgm_read_word(&(strikes_short[nowNumber])));
@@ -494,7 +493,6 @@ void strikeTick() {
     strike_flag = 1;
   }
   if (ACC >= STRIKE_S_THR) {
-    Serial.println(F("STRIKE1"));
     //if (!HUMmode) noToneAC();
     nowNumber = random(7);
     strcpy_P(BUFFER, (char*)pgm_read_word(&(strikes[nowNumber])));
@@ -518,7 +516,6 @@ void hit_flash() {
 
 
 void setCharacter(byte charId){
-  Serial.println(charId);
   switch (charId) {
     case 0: // Darth Vader
       red = 255;
@@ -556,33 +553,34 @@ void setCharacter(byte charId){
       blue = 125;
       break;   
   }
+  //setAllControlPixels(red, green, blue);
 }
 
 void playCharacterSound() {
   switch(currentCharacter){
     case 0:
-      strcpy_P(CHARBUFFER, (char*)pgm_read_word(&(vader_sound[random(8)])));
+      strcpy_P(CHARBUFFER, (char*)pgm_read_word(&(vader_sound[random(9)])));
       tmrpcm.play(CHARBUFFER);
       currentCharacter = 0;
       break;
     case 1: // Kylo Ren
-      strcpy_P(CHARBUFFER, (char*)pgm_read_word(&(ren_sound[random(1)])));
+      strcpy_P(CHARBUFFER, (char*)pgm_read_word(&(ren_sound[random(5)])));
       tmrpcm.play(CHARBUFFER);
       currentCharacter = 1;
       break;
      case 2: // Darth Sidious
 
-      strcpy_P(CHARBUFFER, (char*)pgm_read_word(&(palpatine_sound[random(6)])));
+      strcpy_P(CHARBUFFER, (char*)pgm_read_word(&(palpatine_sound[random(7)])));
       tmrpcm.play(CHARBUFFER);
       currentCharacter = 2;
       break;
      case 3: // Luke Skywalker
-      strcpy_P(CHARBUFFER, (char*)pgm_read_word(&(skywalker_sound[random(4)])));
+      strcpy_P(CHARBUFFER, (char*)pgm_read_word(&(skywalker_sound[random(5)])));
       tmrpcm.play(CHARBUFFER);
       currentCharacter = 3;
       break;
      case 4: // Yoda
-      strcpy_P(CHARBUFFER, (char*)pgm_read_word(&(yoda_sound[random(4)])));
+      strcpy_P(CHARBUFFER, (char*)pgm_read_word(&(yoda_sound[random(5)])));
       tmrpcm.play(CHARBUFFER);
       currentCharacter = 4;
       break;
